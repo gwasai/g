@@ -1,1 +1,1 @@
-# Game of GWAS - www.GameofGWAS.com
+# Game of GWAS App -  www.GameofGWAS.com
