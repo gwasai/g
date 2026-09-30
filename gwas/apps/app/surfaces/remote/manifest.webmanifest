@@ -1,0 +1,9 @@
+{
+  "name": "GWAS",
+  "short_name": "GWAS",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#111318",
+  "theme_color": "#111318",
+  "description": "Private remote surface for a person-owned GWAS authority"
+}
