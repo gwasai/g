@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111318">
+<link rel="manifest" href="./manifest.webmanifest">
+<title>GWAS Remote</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;color:#f4f5f7;background:#111318}
+*{box-sizing:border-box}body{margin:0;padding:env(safe-area-inset-top) 14px env(safe-area-inset-bottom);background:#111318}
+header{position:sticky;top:0;background:#111318ee;backdrop-filter:blur(16px);padding:14px 0 10px;z-index:2}
+h1{font-size:25px;margin:0}.muted{color:#9da3ad}.small{font-size:12px}.row{display:flex;gap:8px;align-items:center}.grow{flex:1}
+.card{background:#1a1d23;border:1px solid #2b3039;border-radius:16px;padding:14px;margin:10px 0}
+button,input{font:inherit;border-radius:11px;border:1px solid #343b46;padding:10px 12px}
+button{background:#2c68ff;color:white;font-weight:650}button.secondary{background:#232831}
+input{width:100%;background:#101217;color:#fff}.status{font-size:13px;margin-top:8px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.plane{padding:13px;border-radius:14px;background:#20242b;text-align:center}.plane b{display:block;font-size:22px;text-transform:lowercase}
+.item{padding:10px 0;border-top:1px solid #2a3038}.item:first-child{border-top:0}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+</style>
+</head>
+<body>
+<header><div class="row"><div class="grow"><h1>GWAS</h1><div class="muted small" id="authority">remote client</div></div><button class="secondary" id="reload">↻</button></div></header>
+
+<section class="grid">
+<div class="plane"><b>c</b><span class="muted small">person</span></div>
+<div class="plane"><b>g</b><span class="muted small">representation + work</span></div>
+<div class="plane"><b>z</b><span class="muted small">future-facing</span></div>
+</section>
+
+<section class="card">
+<strong>Private authority</strong>
+<p class="muted small">This UI is intended to be served by your own GWAS Mac over a private network. It does not need a public database.</p>
+<div class="row"><input id="base" placeholder="https://your-mac.tailnet.ts.net"><button id="connect">Connect</button></div>
+<div class="status muted" id="connection">Not connected</div>
+</section>
+
+<section class="card">
+<div class="row"><strong class="grow">Namespaces</strong><span class="muted small" id="nsCount">—</span></div>
+<div id="namespaces" class="muted small">Connect to your GWAS authority.</div>
+</section>
+
+<section class="card">
+<div class="row"><strong class="grow">CEO state</strong><button class="secondary" id="loadCeo">Load</button></div>
+<div id="ceo" class="muted small">—</div>
+</section>
+
+<section class="card">
+<div class="row"><strong class="grow">Dev Bus</strong><button class="secondary" id="loadBus">Load</button></div>
+<div id="bus" class="muted small">—</div>
+</section>
+
+<script>
+const $=s=>document.querySelector(s);
+const stored=localStorage.getItem("gwasAuthority")||location.origin;
+$("#base").value=stored.startsWith("http")?stored:"";
+function base(){return ($("#base").value||location.origin).replace(/\/$/,"")}
+async function api(path){
+  const r=await fetch(base()+path,{cache:"no-store",credentials:"omit"});
+  if(!r.ok) throw new Error(r.status+" "+r.statusText);
+  return r.json();
+}
+function esc(v){return String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+async function connect(){
+  $("#connection").textContent="Connecting…";
+  try{
+    const s=await api("/_gwas/api/status");
+    localStorage.setItem("gwasAuthority",base());
+    $("#authority").textContent=(s.root||"GWAS authority");
+    $("#connection").textContent="Connected";
+    await loadNamespaces(); await loadCeo(); await loadBus();
+  }catch(e){$("#connection").textContent="Connection failed: "+e.message}
+}
+async function loadNamespaces(){
+  try{
+    const j=await api("/_gwas/api/namespaces");
+    const xs=j.namespaces||j.items||[];
+    $("#nsCount").textContent=xs.length+" namespaces";
+    $("#namespaces").innerHTML=xs.slice(0,40).map(x=>'<div class="item"><strong>'+esc(x.name||x.host||x.namespace)+'</strong><div class="muted">'+esc(x.wiki_path||x.direct||"")+'</div></div>').join("")||"No namespaces.";
+  }catch(e){$("#namespaces").textContent=e.message}
+}
+async function loadCeo(){
+  try{
+    const j=await api("/_gwas/api/ceo"), xs=j.records||[];
+    $("#ceo").innerHTML=xs.slice(-12).reverse().map(x=>'<div class="item"><code>'+esc(x.domain)+'</code><br><strong>'+esc(x.person)+'</strong></div>').join("")||"No accepted CEO selections yet.";
+  }catch(e){$("#ceo").textContent=e.message}
+}
+async function loadBus(){
+  try{
+    const j=await api("/_gwas/api/devbus?lines=20"), xs=j.events||j.items||[];
+    $("#bus").innerHTML=xs.slice(-20).reverse().map(x=>'<div class="item"><code>'+esc(x.surface||"?")+' · '+esc(x.kind||"event")+'</code><br>'+esc(x.message||"")+'</div>').join("")||"No events.";
+  }catch(e){$("#bus").textContent=e.message}
+}
+$("#connect").onclick=connect; $("#reload").onclick=connect; $("#loadCeo").onclick=loadCeo; $("#loadBus").onclick=loadBus;
+if(location.hostname.endsWith(".ts.net")||location.hostname==="localhost") connect();
+</script>
+</body>
+</html>
