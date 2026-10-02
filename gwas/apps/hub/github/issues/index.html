@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GWAS Hub · Work</title>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#0f1115;--panel:#171a20;--line:#292e37;--text:#f3f5f7;--muted:#949ca8;
+  --accent:#6ea8fe;--open:#45c486;--closed:#8c94a1;--blocked:#ffb14a
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;display:flex;gap:12px;align-items:center;padding:14px 18px;background:#0f1115ee;border-bottom:1px solid var(--line);backdrop-filter:blur(16px)}
+h1{font-size:18px;margin:0}.grow{flex:1}.muted{color:var(--muted)}.small{font-size:12px}
+button,input,select{font:inherit;color:inherit;background:#12151a;border:1px solid #343a45;border-radius:9px;padding:8px 10px}
+button{cursor:pointer}.shell{max-width:1200px;margin:0 auto;padding:16px}
+.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+.stat b{font-size:22px;display:block}.toolbar{display:flex;gap:8px;align-items:center;margin:10px 0 14px}.toolbar input{flex:1}
+.issue{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:12px;padding:13px 14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:8px 0}
+.num{color:var(--muted);font-variant-numeric:tabular-nums}.title{font-weight:650}.meta{margin-top:5px;color:var(--muted);font-size:12px;display:flex;gap:8px;flex-wrap:wrap}
+.badge{padding:2px 7px;border-radius:999px;background:#222731;border:1px solid #343a45}.state-open{color:var(--open)}.state-closed{color:var(--closed)}
+a{color:inherit;text-decoration:none}.issue:hover{border-color:#46505e}.empty{padding:40px;text-align:center;color:var(--muted)}
+@media(max-width:720px){.summary{grid-template-columns:repeat(2,1fr)}.issue{grid-template-columns:44px 1fr}.issue .right{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <div><strong>GWAS Hub</strong><div class="small muted">GitHub → Work bridge</div></div>
+  <div class="grow"></div>
+  <button id="refresh">Refresh</button>
+</header>
+<main class="shell">
+  <div class="summary">
+    <div class="stat"><span class="muted small">Open</span><b id="openCount">—</b></div>
+    <div class="stat"><span class="muted small">Closed</span><b id="closedCount">—</b></div>
+    <div class="stat"><span class="muted small">Updated</span><b id="updatedCount">—</b></div>
+    <div class="stat"><span class="muted small">Source</span><b style="font-size:14px">gwasai/g</b></div>
+  </div>
+  <div class="toolbar">
+    <input id="q" placeholder="Filter issues, labels, body…">
+    <select id="state"><option value="all">all</option><option value="open">open</option><option value="closed">closed</option></select>
+  </div>
+  <div id="status" class="muted small"></div>
+  <section id="issues"></section>
+</main>
+<script>
+const API='https://api.github.com/repos/gwasai/g/issues?state=all&per_page=100&sort=updated&direction=desc';
+let rows=[];
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function load(){
+  $('#status').textContent='Loading GitHub issues…';
+  try{
+    const r=await fetch(API,{headers:{'Accept':'application/vnd.github+json'}});
+    if(!r.ok) throw new Error(r.status+' '+r.statusText);
+    const data=await r.json();
+    rows=data.filter(x=>!x.pull_request);
+    $('#status').textContent='Live from the public GitHub API · '+new Date().toLocaleString();
+    render();
+  }catch(e){
+    $('#status').textContent='Could not load GitHub: '+e.message;
+    $('#issues').innerHTML='<div class="empty">When served inside GWAS, the local GitHub/gh sync can populate this view without relying on the public API.</div>';
+  }
+}
+function render(){
+  const q=$('#q').value.trim().toLowerCase();
+  const st=$('#state').value;
+  const filtered=rows.filter(x=>{
+    if(st!=='all'&&x.state!==st) return false;
+    const labels=(x.labels||[]).map(l=>l.name).join(' ');
+    return !q || [x.title,x.body,labels,String(x.number)].join(' ').toLowerCase().includes(q);
+  });
+  $('#openCount').textContent=rows.filter(x=>x.state==='open').length;
+  $('#closedCount').textContent=rows.filter(x=>x.state==='closed').length;
+  $('#updatedCount').textContent=filtered.length;
+  $('#issues').innerHTML=filtered.map(x=>{
+    const labels=(x.labels||[]).map(l=>'<span class="badge">'+esc(l.name)+'</span>').join('');
+    return '<a href="'+esc(x.html_url)+'" target="_blank" rel="noopener"><article class="issue">'+
+      '<div class="num">#'+x.number+'</div>'+
+      '<div><div class="title">'+esc(x.title)+'</div><div class="meta"><span class="state-'+esc(x.state)+'">'+esc(x.state)+'</span>'+labels+
+      '<span>updated '+new Date(x.updated_at).toLocaleString()+'</span></div></div>'+
+      '<div class="right muted small">GitHub ↗</div>'+
+      '</article></a>';
+  }).join('')||'<div class="empty">No matching work.</div>';
+}
+$('#refresh').onclick=load; $('#q').oninput=render; $('#state').onchange=render; load();
+</script>
+</body>
+</html>
